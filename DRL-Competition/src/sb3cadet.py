@@ -5,6 +5,7 @@ from stable_baselines3.common import logger
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from agents.RiskyValley import RiskyValley
 import argparse
+from agents.GolKenari import GolKenari
 
 
 
@@ -76,7 +77,8 @@ if __name__ == "__main__":
             [("hypers", hyperparam)]
         )
 
-        env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
+        # env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
+        env = SubprocVecEnv([lambda: GolKenari(args, agents) for i in range(hyperparam["env"]["n_envs"])])
         checkpoint_callback = CheckpointCallback(save_freq=100000, save_path='./models/YOUR-MODEL-NAME',
                                                  name_prefix='tsts')
 

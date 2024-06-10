@@ -64,7 +64,9 @@ class CustomAgent(BaseLearningAgentGym):
 
     def setup(self, obs_spec, action_spec):
         self.observation_space = obs_spec
+        print("obs_spec", obs_spec)
         self.action_space = action_spec
+        print("action_spec", action_spec)
         print("setup")
 
     def reset(self):
@@ -88,6 +90,7 @@ class CustomAgent(BaseLearningAgentGym):
         load = obs['loads']
         terrain = obs["terrain"] 
         y_max, x_max = res.shape
+        print("RES",res)
         my_units = []
         enemy_units = []
         resources = []

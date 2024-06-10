@@ -19,6 +19,7 @@ class RandomAgent:
         load = state['loads']
 
         self.y_max, self.x_max = res.shape
+        print("RES",res)
         self.my_units = []
         self.enemy_units = []
         self.resources = []
