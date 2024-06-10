@@ -32,8 +32,11 @@ class CustomAgent(BaseLearningAgentGym):
         }
 
     def __init__(self, args, agents):
+        # RiskyValley
+        in_shape = 24 * 18 * 10 + 4
+        # GolKenari
+        in_shape =7 * 15 * 10 + 4
         super().__init__() 
-        print(args, agents, "args")
         self.game = Game(args, agents)
         self.team = 0
         self.enemy_team = 1
@@ -45,7 +48,7 @@ class CustomAgent(BaseLearningAgentGym):
         self.observation_space = spaces.Box(
             low=-2,
             high=401,
-            shape=(24*18*10+4,),
+            shape=(in_shape,),
             dtype=np.int16
         )
         self.action_space = spaces.MultiDiscrete([7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 5])
@@ -53,7 +56,7 @@ class CustomAgent(BaseLearningAgentGym):
         self.previous_ally_count = 4
 
         # Neural network
-        input_dim = 24 * 18 * 10 + 4
+        input_dim = in_shape
         output_dim = 15
         self.model = SimpleNN(input_dim, output_dim)
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)

@@ -4,7 +4,7 @@ import os
 from ray.tune import run_experiments, register_env
 from agents.RiskyValley import RiskyValley
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 
 parser = argparse.ArgumentParser(description='Cadet Agents')
@@ -29,31 +29,35 @@ args = parser.parse_args()
 agents = [None, args.agentRed]
 
 def main():
-    ray.init(num_gpus=1, log_to_driver=True)
+    ray.init(log_to_driver=True, num_gpus=1, num_cpus=2)
     register_env("ray", lambda config: RiskyValley(args, agents))
-    config= {"use_critic": True,
-            "log_level": "WARN",
-             "num_workers": 20,
-             "use_gae": True,
-             "lambda": 1.0,
-             "kl_coeff": 0.2,
-             "rollout_fragment_length": 200,
-             "train_batch_size": 4000,
-             "sgd_minibatch_size": 128,
-             "shuffle_sequences": True,
-             "num_sgd_iter": 30,
-             "lr": 5e-5,
-             "lr_schedule": None,
-             "vf_loss_coeff": 1.0,
-             "framework": "torch",
-             "entropy_coeff": 0.0,
-             "entropy_coeff_schedule": None,
-             "clip_param": 0.3,
-             "vf_clip_param": 10.0,
-             "grad_clip": None,
-             "kl_target": 0.01,
-             "batch_mode": "truncate_episodes",
-             "observation_filter": "NoFilter"}
+    config = {
+        "env": "ray",
+        "use_critic": True,
+        "log_level": "WARN",
+        "num_workers": 1,  # Reduced number of workers to fit within available resources
+        "num_envs_per_worker": 1,
+        "use_gae": True,
+        "lambda": 1.0,
+        "kl_coeff": 0.2,
+        "rollout_fragment_length": 200,
+        "train_batch_size": 2000,  # Reduced batch size
+        "sgd_minibatch_size": 128,
+        "shuffle_sequences": True,
+        "num_sgd_iter": 10,  # Reduced number of SGD iterations
+        "lr": 5e-5,
+        "lr_schedule": None,
+        "vf_loss_coeff": 1.0,
+        "framework": "torch",
+        "entropy_coeff": 0.0,
+        "entropy_coeff_schedule": None,
+        "clip_param": 0.3,
+        "vf_clip_param": 10.0,
+        "grad_clip": None,
+        "kl_target": 0.01,
+        "batch_mode": "truncate_episodes",
+        "observation_filter": "NoFilter"
+    }
     run_experiments({
         "risky_ppo_recruit": {
             "run": "PPO",

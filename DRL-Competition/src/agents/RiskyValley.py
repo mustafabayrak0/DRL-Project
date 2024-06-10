@@ -8,8 +8,6 @@ from game import Game
 from utilities import multi_forced_anchor, necessary_obs, decode_location, multi_reward_shape, enemy_locs, ally_locs, getDistance
 
 
-
-
 class RiskyValley(BaseLearningAgentGym):
 
     tagToString = {
@@ -21,7 +19,8 @@ class RiskyValley(BaseLearningAgentGym):
 
     def __init__(self, args, agents):
         super().__init__() 
-        print(args, agents, "args")
+        print(args, "args")
+        print(agents, "agents")
         self.game = Game(args, agents)
         self.team = 0
         self.enemy_team = 1

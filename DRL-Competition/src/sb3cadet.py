@@ -88,5 +88,3 @@ if __name__ == "__main__":
         model.learn(callback=[loggcallback, checkpoint_callback],
                     tb_log_name=gamename,
                     **hyperparam["learn"])
-
-        print("Training Done")

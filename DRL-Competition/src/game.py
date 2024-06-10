@@ -44,6 +44,7 @@ class Game:
             if ag == None:
                 self.agents_classes.append(None)
             elif ag in files_in_dir:
+                print(ag)
                 mod = importlib.import_module('agents.'+ag)
                 self.agents_classes.append(getattr(mod, ag))
                 if ag == "HumanAgent":  # any other human class??
@@ -55,7 +56,6 @@ class Game:
     def _agent_timeout_handler(self, signum, frame):
         raise Exception("Agent Timeout")
     def __init__(self,args,agents):
-        print(args)
         self.__import_agents(agents)
         self.agents = []
         signal.signal(signal.SIGALRM, self._agent_timeout_handler)
