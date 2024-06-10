@@ -89,3 +89,4 @@ if __name__ == "__main__":
                     tb_log_name=gamename,
                     **hyperparam["learn"])
 
+        print("Training Done")
