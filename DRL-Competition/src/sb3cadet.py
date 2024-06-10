@@ -50,6 +50,7 @@ class LoggerCallback(BaseCallback):
 
         _logger = self.globals["logger"].Logger.CURRENT
         _dir = _logger.dir
+        _dir = "logs"
         log_format = logger.make_output_format(self._format, _dir, self.suffix)
         _logger.output_formats.append(log_format)
         if self.log_on_start is not None:
