@@ -76,6 +76,16 @@ def decodeState(state):
 
 
 def getDistance(pos_1, pos_2):
+    if type(pos_1) is tuple:
+        pos_1 = list(pos_1)
+    if type(pos_2) is tuple:
+        pos_2 = list(pos_2)
+        
+    if type(pos_1) is np.ndarray:
+        pos_1 = pos_1.tolist()
+    if type(pos_2) is np.ndarray:
+        pos_2 = pos_2.tolist()
+        
     if pos_1 == None or pos_2 == None:
         return 999
     pos1 = copy.copy(pos_1)
@@ -87,14 +97,11 @@ def getDistance(pos_1, pos_2):
     distance = (abs(pos1[0]-pos2[0]) + abs(pos1[1]-pos2[1]) + abs(pos1[0]+pos1[1]-pos2[0]-pos2[1]))//2
     return distance
 
-
 def decode_location(my_units):
     locations = []
     for unit in my_units:
         locations.append(unit["location"])
     return locations
-
-
 
 def enemy_locs(obs, team):
     enemy_units = obs['units'][(team+1) % 2]
@@ -131,6 +138,113 @@ def nearest_enemy(allied_unit_loc, enemy_locs):
     nearest_enemy_loc = np.argmin(distances)
 
     return enemy_locs[nearest_enemy_loc]
+
+def get_best_direction(unit_pos, target_pos, raw_state):
+    best_direction = 0
+    min_distance = 999
+    for action in range(1, 7):
+        new_pos = (
+            unit_pos[0] + movement_grid[unit_pos[1] % 2][action][0],
+            unit_pos[1] + movement_grid[unit_pos[1] % 2][action][1]
+        )
+        # Check if new_pos is valid
+        if new_pos[0] < 0 or new_pos[0] >= raw_state["terrain"].shape[0] or new_pos[1] < 0 or new_pos[1] >= raw_state["terrain"].shape[1]:
+            continue
+        if raw_state["terrain"][new_pos[0], new_pos[1]] == 2 or raw_state["terrain"][new_pos[0], new_pos[1]] == 3:
+            continue
+        
+        distance = getDistance(new_pos, target_pos)
+        if distance < min_distance:
+            min_distance = distance
+            best_direction = action
+    print("Best Direction:", best_direction)
+    return best_direction
+
+def multi_forced_anchor_custom(movement, obs, team):
+    bases = obs['bases'][team]
+    units = obs['units'][team]
+    loads = obs['loads'][team]
+    resources = obs['resources']
+    base_loc = np.argwhere(bases == 1).squeeze()
+    resource_loc = np.argwhere(resources == 1)
+    allies = ally_locs(obs, team)
+    trucks = truck_locs(obs, team)
+
+    # print("Base Location:", base_loc)
+    # print("Resource Locations:", resource_loc)
+    # print("Allies:", allies)
+    # print("Trucks:", trucks)
+
+    for i, ally in enumerate(allies):
+        if len(trucks) == 0 or i > 6:
+            break
+        if isinstance(trucks[0], np.int64):
+            trucks = np.expand_dims(trucks, axis=0)
+        for truck in trucks:
+            if (ally == truck).all():
+                # print("Processing Truck at:", truck)
+                # print("Truck Load:", loads[truck[0], truck[1]])
+                if loads[truck[0], truck[1]] >= 2:
+                    # movement[i] = get_best_direction(truck, base_loc, obs)
+                    movement[i] = 0
+                    
+    #                 # print("Moving towards Base:", movement[i])
+    #             elif loads[truck[0], truck[1]] == 1:
+    #                 closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
+    #                 distance_to_base = getDistance(truck, base_loc)
+    #                 distance_to_resource = getDistance(truck, closest_resource)
+    #                 if distance_to_base < distance_to_resource:
+    #                     # movement[i] = get_best_direction(truck, base_loc, obs)
+    #                     movement[i] = 0
+                        
+    #                     # print("Closer to Base, Moving towards Base:", movement[i])
+    #                 else:
+    #                     # movement[i] = get_best_direction(truck, closest_resource, obs)
+    #                     movement[i] = 0
+                        
+    #                     # print("Closer to Resource, Moving towards Resource:", movement[i])
+    #             elif loads[truck[0], truck[1]] == 0:
+    #                 closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
+    #                 # movement[i] = get_best_direction(truck, closest_resource, obs)
+    #                 movement[i] = 0
+    #                 # print("Empty Truck, Moving towards Resource:", movement[i])
+    # # print("Final Movement:", movement)
+    return movement
+
+# def multi_forced_anchor_custom(movement, obs, team, raw_state):
+#     bases = obs['bases'][team]
+#     units = obs['units'][team]
+#     loads = obs['loads'][team]
+#     resources = obs['resources']
+#     base_loc = np.argwhere(bases == 1).squeeze()
+#     resource_loc = np.argwhere(resources == 1)
+#     allies = ally_locs(obs, team)
+#     trucks = truck_locs(obs, team)
+
+#     for i, ally in enumerate(allies):
+#         if len(trucks) == 0 or i > 6:
+#             break
+#         if isinstance(trucks[0], np.int64):
+#             trucks = np.expand_dims(trucks, axis=0)
+#         for truck in trucks:
+#             # Squeeze the truck array
+#             # truck = truc
+#             if np.array_equal(ally, truck):
+#                 if loads[truck[0], truck[1]] >= 2:
+#                     movement[i] = get_best_direction(truck, base_loc, raw_state)
+#                 elif loads[truck[0], truck[1]] == 1:
+#                     closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
+#                     distance_to_base = getDistance(truck, base_loc)
+#                     distance_to_resource = getDistance(truck, closest_resource)
+#                     if distance_to_base < distance_to_resource:
+#                         movement[i] = get_best_direction(truck, base_loc, raw_state)
+#                     else:
+#                         movement[i] = get_best_direction(truck, closest_resource, raw_state)
+#                 elif loads[truck[0], truck[1]] == 0:
+#                     # Get closest resource
+#                     closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
+#                     movement[i] = get_best_direction(truck, closest_resource, raw_state)
+#     return movement
 
 def multi_forced_anchor(movement, obs, team): # birden fazla truck için
     bases = obs['bases'][team]
@@ -286,3 +400,4 @@ def multi_reward_shape(obs, team): # Birden fazla truck için
 
     harvest_reward = load_reward + unload_reward + enemy_load_reward + enemy_unload_reward
     return harvest_reward, len(enemy), len(ally)
+

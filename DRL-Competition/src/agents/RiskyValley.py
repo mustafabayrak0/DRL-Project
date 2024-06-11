@@ -212,7 +212,6 @@ class RiskyValley(BaseLearningAgentGym):
 
 
     def step(self, action):
-        print("HERE!!!!")
         harvest_reward = 0
         kill_reward = 0
         martyr_reward = 0

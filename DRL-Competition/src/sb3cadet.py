@@ -1,14 +1,13 @@
 import yaml
-from stable_baselines3 import A2C
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common import logger
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from agents.RiskyValley import RiskyValley
 import argparse
 from agents.GolKenari import GolKenari
-from stable_baselines3 import PPO
-
-
+from agents.CustomAgent import CustomAgent
+from CustomPolicy import CustomPolicyWithAttention
+from stable_baselines3 import A2C, PPO, DDPG, SAC, TD3
 def read_hypers():
     with open(f"./src/hyper.yaml", "r") as f:
         hyperparams_dict = yaml.safe_load(f)
@@ -42,10 +41,10 @@ args = argparse.Namespace()
 args.map = "GolKenariVadisi"
 # args.map = "RiskyValley"
 # args.mode = "Train"
-args.agentBlue = "RiskyValley"
+args.agentBlue = "CustomAgent"
 args.agentRed = "RandomAgent"
 args.numOfMatch = 10
-args.render = False
+args.render = True
 args.gif = False
 args.img = False
 
@@ -92,12 +91,14 @@ if __name__ == "__main__":
             [("hypers", hyperparam)]
         )
 
-        env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
+        env = SubprocVecEnv([lambda: CustomAgent(args, agents) for i in range(hyperparam["env"]["n_envs"])])
+        # env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
         # env = SubprocVecEnv([lambda: GolKenari(args, agents) for i in range(hyperparam["env"]["n_envs"])])
         checkpoint_callback = CheckpointCallback(save_freq=100000, save_path='./models/YOUR-MODEL-NAME',
                                                  name_prefix='tsts')
         
-        model = PPO('MlpPolicy', env, verbose=1)
+        # model = PPO('MlpPolicy', env, verbose=1)
+        model = PPO('MlpPolicy', env, policy_kwargs={'features_extractor_class': CustomPolicyWithAttention}, verbose=1, tensorboard_log="logs")
         model.learn(total_timesteps=100000)
         ## A2C
         # model = A2C(env=env,

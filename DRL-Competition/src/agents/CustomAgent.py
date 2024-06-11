@@ -3,24 +3,12 @@ from agents.BaseLearningGym import BaseLearningAgentGym
 import gym
 from gym import spaces
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import yaml
 from game import Game
-from utilities import multi_forced_anchor, necessary_obs, decode_location, multi_reward_shape, enemy_locs, ally_locs, getDistance
+from utilities import multi_forced_anchor, necessary_obs, decode_location, multi_reward_shape, enemy_locs, ally_locs, getDistance, truck_locs, multi_forced_anchor_custom
 
-class SimpleNN(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(SimpleNN, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, output_dim)
-        
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+
+
 
 class CustomAgent(BaseLearningAgentGym):
 
@@ -33,11 +21,11 @@ class CustomAgent(BaseLearningAgentGym):
 
     def __init__(self, args, agents):
         super().__init__() 
+        print(args, agents, "args")
         self.game = Game(args, agents)
         self.team = 0
         self.enemy_team = 1
-        in_shape = self.game.map_x * self.game.map_y * 10 + 4
-
+        
         self.reward = 0
         self.episodes = 0
         self.steps = 0
@@ -45,19 +33,12 @@ class CustomAgent(BaseLearningAgentGym):
         self.observation_space = spaces.Box(
             low=-2,
             high=401,
-            shape=(in_shape,),
+            shape=(self.game.map_x* self.game.map_y * 10+4,),
             dtype=np.int16
         )
         self.action_space = spaces.MultiDiscrete([7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 5])
         self.previous_enemy_count = 4
         self.previous_ally_count = 4
-
-        # Neural network
-        input_dim = in_shape
-        output_dim = 15
-        self.model = SimpleNN(input_dim, output_dim)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
-        self.loss_fn = nn.MSELoss()
 
     def setup(self, obs_spec, action_spec):
         self.observation_space = obs_spec
@@ -72,40 +53,8 @@ class CustomAgent(BaseLearningAgentGym):
         state = self.game.reset()
         self.nec_obs = state
         return self.decode_state(state)
-    
-    ## REWARD FUNCTIONS
-    
-    def compute_reward(self, state, action, next_state):
-        reward = 0
-        reward += self.resource_collection_reward(next_state)
-        reward += self.enemy_defeat_reward(state, next_state)
-        reward -= self.unit_loss_penalty(state, next_state)
-        reward += self.goal_achievement_reward(state, next_state)
-        reward -= self.action_efficiency_penalty(action)
-        return reward
-
-    def resource_collection_reward(self, next_state):
-        # Example: +1 for each resource collected
-        return next_state['resources_collected']
-
-    def enemy_defeat_reward(self, state, next_state):
-        # Example: +5 for each enemy defeated
-        return (state['enemies_remaining'] - next_state['enemies_remaining']) * 5
-
-    def unit_loss_penalty(self, state, next_state):
-        # Example: -2 for each unit lost
-        return (state['units_remaining'] - next_state['units_remaining']) * -2
-
-    def goal_achievement_reward(self, state, next_state):
-        # Example: +10 for reaching a goal
-        if next_state['goal_reached']:
-            return 10
-        return 0
-
-    def action_efficiency_penalty(self, action):
-        # Example: -0.1 for each unnecessary action
-        return -0.1 * action['unnecessary_actions']
         
+
     @staticmethod
     def _decode_state(obs, team, enemy_team):
         turn = obs['turn'] # 1
@@ -118,7 +67,6 @@ class CustomAgent(BaseLearningAgentGym):
         load = obs['loads']
         terrain = obs["terrain"] 
         y_max, x_max = res.shape
-        print("RES",res)
         my_units = []
         enemy_units = []
         resources = []
@@ -159,7 +107,7 @@ class CustomAgent(BaseLearningAgentGym):
         terr = [*terrain.reshape(-1).tolist()]
         
         state = (*score.tolist(), turn, max_turn, *unitss, *hpss, *basess, *ress, *loads, *terr)
-
+        
         return np.array(state, dtype=np.int16), (x_max, y_max, my_units, enemy_units, resources, my_base,enemy_base)
 
     @staticmethod
@@ -171,13 +119,10 @@ class CustomAgent(BaseLearningAgentGym):
         state, info = self._decode_state(obs, self.team, self.enemy_team)
         self.x_max, self.y_max, self.my_units, self.enemy_units, self.resources, self.my_base, self.enemy_base = info
         return state
+
     
-    def take_action(self, state):
-        print("STATE", state)
-        state_tensor = torch.tensor(state, dtype=torch.float32)
-        with torch.no_grad():
-            action = self.model(state_tensor).numpy()
-        return self.just_take_action(action, self.nec_obs, self.team)
+    def take_action(self, action):
+        return self.just_take_action(action, self.nec_obs, self.team) 
 
     @staticmethod
     def just_take_action(action, raw_state, team):
@@ -186,7 +131,6 @@ class CustomAgent(BaseLearningAgentGym):
         target = action[7:14]
         train = action[14]
         enemy_order = []
-
         allies = ally_locs(raw_state, team)
         enemies = enemy_locs(raw_state, team)
 
@@ -240,55 +184,98 @@ class CustomAgent(BaseLearningAgentGym):
             while len(locations) > 7:
                 locations.pop(-1)
 
-        movement = multi_forced_anchor(movement, raw_state, team)
+
+        movement = multi_forced_anchor_custom(movement, raw_state, team)
+        # print("movement1", movement2)
+        # movement = multi_forced_anchor(movement, raw_state, team)
 
         if len(locations) > 0:
             locations = list(map(list, locations))
 
+        #locations'dan biri, bir düşmana 2 adımda veya daha yakınsa dur (movement=0) ve ona ateş et (target = arg.min(distances))
+
         for i in range(len(locations)):
             for k in range(len(enemy_order)):
+                
                 if getDistance(locations[i], enemy_order[k]) <= 3:
                     movement[i] = 0
                     enemy_order[i] = enemy_order[k]
 
+
         locations = list(map(tuple, locations))
         return [locations, movement, enemy_order, train]
 
-    # def step(self, action):
-    #     harvest_reward = 0
-    #     kill_reward = 0
-    #     martyr_reward = 0
-    #     action = self.take_action(self.decode_state(self.nec_obs))
-    #     next_state, _, done =  self.game.step(action)
-    #     harvest_reward, enemy_count, ally_count = multi_reward_shape(self.nec_obs, self.team)
-    #     if enemy_count < self.previous_enemy_count:
-    #         kill_reward = (self.previous_enemy_count - enemy_count) * 5
 
-    #     if ally_count < self.previous_ally_count:
-    #         martyr_reward = (self.previous_ally_count - ally_count) * 5
-    #     reward = harvest_reward + kill_reward - martyr_reward
+    def calculate_custom_rewards(self, obs, team):
+        load_reward = 0
+        unload_reward = 0
+        proximity_reward = 0
+        survival_reward = 0
+        resource_control_reward = 0
+        strategic_positioning_reward = 0
 
-    #     self.previous_enemy_count = enemy_count
-    #     self.previous_ally_count = ally_count
-    #     info = {}
-    #     self.steps += 1
-    #     self.reward += reward
+        bases = obs['bases'][team]
+        units = obs['units'][team]
+        enemy_bases = obs['bases'][(team+1) % 2]
+        enemy_units = obs['units'][(team+1) % 2]
+        loads = obs['loads'][team]
+        resources = obs['resources']
+        base_loc = np.argwhere(bases == 1).squeeze()
+        enemy_base_loc = np.argwhere(enemy_bases == 1).squeeze()
+        resource_loc = np.argwhere(resources == 1)
+        enemy = enemy_locs(obs, team)
+        ally = ally_locs(obs, team)
+        trucks = truck_locs(obs, team)
 
-    #     self.nec_obs = next_state
-    #     return self.decode_state(next_state), reward, done, info
-    
+        # Calculate load and unload rewards
+        for truck in trucks:
+            for reso in resource_loc:
+                if not isinstance(truck, np.int64):
+                    if (reso == truck).all() and loads[truck[0], truck[1]].max() != 3: 
+                        load_reward += 10
+                if not isinstance(truck, np.int64):
+                    if loads[truck[0], truck[1]].max() != 0 and (truck == base_loc).all():
+                        unload_reward += 20
+
+        # Calculate proximity reward
+        for ally in ally_locs(obs, team):
+            for enemy_base in enemy_base_loc:
+                proximity_reward += 0
+
+        # Calculate survival reward
+        survival_reward = len(ally_locs(obs, team)) * 5
+
+        # Calculate resource control reward
+        for ally in ally_locs(obs, team):
+            for reso in resource_loc:
+                if (ally == reso).all():
+                    resource_control_reward += 1
+
+        # Calculate strategic positioning reward (example: rewarding units on high ground)
+        for ally in ally_locs(obs, team):
+            if obs['terrain'][ally[0]][ally[1]] == 2:  # Assuming '2' represents high ground
+                strategic_positioning_reward += 2
+
+        total_reward = (load_reward + unload_reward + proximity_reward +
+                        survival_reward + resource_control_reward +
+                        strategic_positioning_reward)
+
+        return total_reward
+
     def step(self, action):
-        print("HERE")
-        action = self.take_action(self.decode_state(self.nec_obs))
+        action = self.take_action(action)
         next_state, _, done =  self.game.step(action)
-        rewards = []
-        for i, agent in enumerate(self.agents):
-            reward = agent.compute_reward(self.state, action[i], next_state)
-            rewards.append(reward)
-        self.state = next_state
-        done = self.check_done()
+        reward = self.calculate_custom_rewards(self.nec_obs, self.team)
+        _, enemy_count, ally_count = multi_reward_shape(self.nec_obs, self.team)
+
+        self.previous_enemy_count = enemy_count
+        self.previous_ally_count = ally_count
         info = {}
-        return self.decode_state(next_state), rewards, done, info
+        self.steps += 1
+        self.reward += reward
+
+        self.nec_obs = next_state
+        return self.decode_state(next_state), reward, done, info
 
     def render(self,):
         return None
