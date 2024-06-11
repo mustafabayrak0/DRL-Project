@@ -44,7 +44,6 @@ class Game:
             if ag == None:
                 self.agents_classes.append(None)
             elif ag in files_in_dir:
-                print(ag)
                 mod = importlib.import_module('agents.'+ag)
                 self.agents_classes.append(getattr(mod, ag))
                 if ag == "HumanAgent":  # any other human class??
@@ -97,6 +96,7 @@ class Game:
         self.reset()
 
     def step(self, action):
+        # print("MU")
         #step cadet
         location, movement, target, train = action
         self.__step(location, movement, target, train)
@@ -121,16 +121,12 @@ class Game:
         self.__endTurn()
         next_state = self.gmap.getState(self.all_ubr)
         reward = self.bases[self.go_team].getScore() - self.bases[(self.go_team+1)%2].getScore()
+        reward = 0
         done = True if self.turn>self.max_turn else False
         return next_state,reward,done
 
     def __step(self, location, action, target, train):
-        #if(len(action)==len(self.units[self.go_team]) and len(target)==len(self.units[self.go_team])):
-        #print("Now:",self.go_team)
-        #for a,b,c in zip(location,action,target):
-        #    print("   ",a,b,c)
-        #print("Train",train)
-        #print("-----")
+        # print("it")
         for i in range(len(action)):
             current_units = self.units[self.go_team]
             active_unit = None
@@ -300,7 +296,7 @@ class Game:
                 if self.img:
                     pygame.image.save(self.screen, "screenshot"+str(self.turn)+"_"+str(self.go_team)+".jpg")
             #printProgressBar(self.turn, self.max_turn, prefix = 'Progress:', suffix = 'Complete', length = 50)
-            print('\rProgress: {}%'.format(int((self.turn/self.max_turn)*100)), end='\r')
+            # print('\rProgress: {}%'.format(int((self.turn/self.max_turn)*100)), end='\r') #TODO: ben koydum
         if self.gif:
             ss_list[0].save(fp="game.gif", format='GIF', append_images=ss_list, save_all=True, duration=200, loop=0)
         return terminate, self.all_ubr[1][0].getScore(), self.all_ubr[1][1].getScore()

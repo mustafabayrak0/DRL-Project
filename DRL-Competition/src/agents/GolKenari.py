@@ -222,16 +222,22 @@ class GolKenari(BaseLearningAgentGym):
         harvest_reward = 0
         kill_reward = 0
         martyr_reward = 0
+        print("ACTION:",action)
         action = self.take_action(action)
         next_state, _, done =  self.game.step(action)
         harvest_reward, enemy_count, ally_count = multi_reward_shape(self.nec_obs, self.team)
         if enemy_count < self.previous_enemy_count:
-            kill_reward = (self.previous_enemy_count - enemy_count) * 5
-
-        if ally_count < self.previous_ally_count:
-            martyr_reward = (self.previous_ally_count - ally_count) * 5
+            kill_reward = (self.previous_enemy_count - enemy_count) * 500
+            
+        martyr_reward = 0
+        harvest_reward = 0
+        
+        # if ally_count < self.previous_ally_count:
+        #     martyr_reward = (self.previous_ally_count - ally_count) * 5
         reward = harvest_reward + kill_reward - martyr_reward
-
+        print("--------------------")
+        print("REWARD:",self.reward)
+        print("--------------------")
 
         self.previous_enemy_count = enemy_count
         self.previous_ally_count = ally_count

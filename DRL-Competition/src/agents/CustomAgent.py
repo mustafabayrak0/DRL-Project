@@ -32,14 +32,11 @@ class CustomAgent(BaseLearningAgentGym):
         }
 
     def __init__(self, args, agents):
-        # RiskyValley
-        in_shape = 24 * 18 * 10 + 4
-        # GolKenari
-        in_shape =7 * 15 * 10 + 4
         super().__init__() 
         self.game = Game(args, agents)
         self.team = 0
         self.enemy_team = 1
+        in_shape = self.game.map_x * self.game.map_y * 10 + 4
 
         self.reward = 0
         self.episodes = 0
@@ -64,9 +61,7 @@ class CustomAgent(BaseLearningAgentGym):
 
     def setup(self, obs_spec, action_spec):
         self.observation_space = obs_spec
-        print("obs_spec", obs_spec)
         self.action_space = action_spec
-        print("action_spec", action_spec)
         print("setup")
 
     def reset(self):
@@ -77,6 +72,39 @@ class CustomAgent(BaseLearningAgentGym):
         state = self.game.reset()
         self.nec_obs = state
         return self.decode_state(state)
+    
+    ## REWARD FUNCTIONS
+    
+    def compute_reward(self, state, action, next_state):
+        reward = 0
+        reward += self.resource_collection_reward(next_state)
+        reward += self.enemy_defeat_reward(state, next_state)
+        reward -= self.unit_loss_penalty(state, next_state)
+        reward += self.goal_achievement_reward(state, next_state)
+        reward -= self.action_efficiency_penalty(action)
+        return reward
+
+    def resource_collection_reward(self, next_state):
+        # Example: +1 for each resource collected
+        return next_state['resources_collected']
+
+    def enemy_defeat_reward(self, state, next_state):
+        # Example: +5 for each enemy defeated
+        return (state['enemies_remaining'] - next_state['enemies_remaining']) * 5
+
+    def unit_loss_penalty(self, state, next_state):
+        # Example: -2 for each unit lost
+        return (state['units_remaining'] - next_state['units_remaining']) * -2
+
+    def goal_achievement_reward(self, state, next_state):
+        # Example: +10 for reaching a goal
+        if next_state['goal_reached']:
+            return 10
+        return 0
+
+    def action_efficiency_penalty(self, action):
+        # Example: -0.1 for each unnecessary action
+        return -0.1 * action['unnecessary_actions']
         
     @staticmethod
     def _decode_state(obs, team, enemy_team):
@@ -145,6 +173,7 @@ class CustomAgent(BaseLearningAgentGym):
         return state
     
     def take_action(self, state):
+        print("STATE", state)
         state_tensor = torch.tensor(state, dtype=torch.float32)
         with torch.no_grad():
             action = self.model(state_tensor).numpy()
@@ -225,28 +254,41 @@ class CustomAgent(BaseLearningAgentGym):
         locations = list(map(tuple, locations))
         return [locations, movement, enemy_order, train]
 
+    # def step(self, action):
+    #     harvest_reward = 0
+    #     kill_reward = 0
+    #     martyr_reward = 0
+    #     action = self.take_action(self.decode_state(self.nec_obs))
+    #     next_state, _, done =  self.game.step(action)
+    #     harvest_reward, enemy_count, ally_count = multi_reward_shape(self.nec_obs, self.team)
+    #     if enemy_count < self.previous_enemy_count:
+    #         kill_reward = (self.previous_enemy_count - enemy_count) * 5
+
+    #     if ally_count < self.previous_ally_count:
+    #         martyr_reward = (self.previous_ally_count - ally_count) * 5
+    #     reward = harvest_reward + kill_reward - martyr_reward
+
+    #     self.previous_enemy_count = enemy_count
+    #     self.previous_ally_count = ally_count
+    #     info = {}
+    #     self.steps += 1
+    #     self.reward += reward
+
+    #     self.nec_obs = next_state
+    #     return self.decode_state(next_state), reward, done, info
+    
     def step(self, action):
-        harvest_reward = 0
-        kill_reward = 0
-        martyr_reward = 0
+        print("HERE")
         action = self.take_action(self.decode_state(self.nec_obs))
         next_state, _, done =  self.game.step(action)
-        harvest_reward, enemy_count, ally_count = multi_reward_shape(self.nec_obs, self.team)
-        if enemy_count < self.previous_enemy_count:
-            kill_reward = (self.previous_enemy_count - enemy_count) * 5
-
-        if ally_count < self.previous_ally_count:
-            martyr_reward = (self.previous_ally_count - ally_count) * 5
-        reward = harvest_reward + kill_reward - martyr_reward
-
-        self.previous_enemy_count = enemy_count
-        self.previous_ally_count = ally_count
+        rewards = []
+        for i, agent in enumerate(self.agents):
+            reward = agent.compute_reward(self.state, action[i], next_state)
+            rewards.append(reward)
+        self.state = next_state
+        done = self.check_done()
         info = {}
-        self.steps += 1
-        self.reward += reward
-
-        self.nec_obs = next_state
-        return self.decode_state(next_state), reward, done, info
+        return self.decode_state(next_state), rewards, done, info
 
     def render(self,):
         return None

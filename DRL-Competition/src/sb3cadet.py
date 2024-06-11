@@ -6,7 +6,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from agents.RiskyValley import RiskyValley
 import argparse
 from agents.GolKenari import GolKenari
-
+from stable_baselines3 import PPO
 
 
 def read_hypers():
@@ -15,25 +15,40 @@ def read_hypers():
         return hyperparams_dict["agentsofglory"]
 
 
-parser = argparse.ArgumentParser(description='Cadet Agents')
-parser.add_argument('map', metavar='map', type=str,
-                    help='Select Map to Train')
-parser.add_argument('--mode', metavar='mode', type=str, default="Train",
-                    help='Select Mode[Train,Sim]')
-parser.add_argument('--agentBlue', metavar='agentBlue', type=str, default="RayEnv",
-                    help='Class name of Blue Agent')
-parser.add_argument('--agentRed', metavar='agentRed', type=str,
-                    help='Class name of Red Agent')
-parser.add_argument('--numOfMatch', metavar='numOfMatch', type=int, nargs='?', default=10,
-                    help='Number of matches to play between agents')
-parser.add_argument('--render', action='store_true',
-                    help='Render the game')
-parser.add_argument('--gif', action='store_true',
-                    help='Create a gif of the game, also sets render')
-parser.add_argument('--img', action='store_true',
-                    help='Save images of each turn, also sets render')
+# parser = argparse.ArgumentParser(description='Cadet Agents')
+# parser.add_argument('map', metavar='map', type=str,
+#                     help='Select Map to Train')
+# parser.add_argument('--mode', metavar='mode', type=str, default="Train",
+#                     help='Select Mode[Train,Sim]')
+# parser.add_argument('--agentBlue', metavar='agentBlue', type=str, default="RayEnv",
+#                     help='Class name of Blue Agent')
+# parser.add_argument('--agentRed', metavar='agentRed', type=str,
+#                     help='Class name of Red Agent')
+# parser.add_argument('--numOfMatch', metavar='numOfMatch', type=int, nargs='?', default=10,
+#                     help='Number of matches to play between agents')
+# parser.add_argument('--render', action='store_true',
+#                     help='Render the game')
+# parser.add_argument('--gif', action='store_true',
+#                     help='Create a gif of the game, also sets render')
+# parser.add_argument('--img', action='store_true',
+#                     help='Save images of each turn, also sets render')
 
-args = parser.parse_args()
+# args = parser.parse_args()
+
+# Initialize args to be able to define in code instead of command line
+args = argparse.Namespace()
+
+# Prepare args manually
+args.map = "GolKenariVadisi"
+# args.map = "RiskyValley"
+# args.mode = "Train"
+args.agentBlue = "RiskyValley"
+args.agentRed = "RandomAgent"
+args.numOfMatch = 10
+args.render = False
+args.gif = False
+args.img = False
+
 agents = [None, args.agentRed]
 
 
@@ -77,16 +92,19 @@ if __name__ == "__main__":
             [("hypers", hyperparam)]
         )
 
-        # env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
-        env = SubprocVecEnv([lambda: GolKenari(args, agents) for i in range(hyperparam["env"]["n_envs"])])
+        env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
+        # env = SubprocVecEnv([lambda: GolKenari(args, agents) for i in range(hyperparam["env"]["n_envs"])])
         checkpoint_callback = CheckpointCallback(save_freq=100000, save_path='./models/YOUR-MODEL-NAME',
                                                  name_prefix='tsts')
+        
+        model = PPO('MlpPolicy', env, verbose=1)
+        model.learn(total_timesteps=100000)
+        ## A2C
+        # model = A2C(env=env,
+        #             verbose=1,
+        #             tensorboard_log="logs",
+        #             **hyperparam["agent"])
 
-        model = A2C(env=env,
-                    verbose=1,
-                    tensorboard_log="logs",
-                    **hyperparam["agent"])
-
-        model.learn(callback=[loggcallback, checkpoint_callback],
-                    tb_log_name=gamename,
-                    **hyperparam["learn"])
+        # model.learn(callback=[loggcallback, checkpoint_callback],
+        #             tb_log_name=gamename,
+        #             **hyperparam["learn"])
