@@ -3,23 +3,18 @@ agentsofglory:
       envname: RayEnv
       env:
         seed: 450
-        n_envs: 1
+        n_envs: 1  # Updated to ensure n_steps * n_envs is a multiple of batch_size
       framestack:
         n_stack: 4
       agent:
         seed: 1450
-        policy: 'MlpPolicy'
         learning_rate: 0.0007
-        n_steps: 10
+        n_steps: 64  # Ensure n_steps * n_envs is a multiple of batch_size
+        batch_size: 64  # Updated to be a multiple of n_steps * n_envs
         gamma: 0.99
         gae_lambda: 1
         ent_coef: 0.01
         vf_coef: 0.25
         max_grad_norm: 0.5
-        rms_prop_eps: 0.00001
       learn:
-        total_timesteps: !!float 1e7
-        log_interval: 200
-
- 
-
+        log_interval: 50

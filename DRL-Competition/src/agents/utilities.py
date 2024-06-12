@@ -4,6 +4,8 @@ from yaml import load
 import numpy as np
 import copy
 import time
+import heapq
+from collections import deque
 
 tagToString = {
     1: "Truck",
@@ -73,6 +75,93 @@ def decodeState(state):
             if bases[red][i][j]:
                 red_base = (i, j)
     return [blue_units, red_units, blue_base, red_base, resources]
+
+def a_star_pathfinding(start, goal, terrain):
+    start = tuple(start)
+    goal = tuple(goal)
+
+    def heuristic(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    open_set = set([start])
+    came_from = {}
+
+    g_score = {start: 0}
+    f_score = {start: heuristic(start, goal)}
+
+    while open_set:
+        current = min(open_set, key=lambda pos: f_score.get(pos, float('inf')))
+        
+        if current == goal:
+            path = []
+            while current in came_from:
+                path.append(current)
+                current = came_from[current]
+            path.reverse()
+            return path
+
+        open_set.remove(current)
+        closed_set = set()
+        closed_set.add(current)
+
+        for action in range(1, 7):
+            neighbor = (
+                current[0] + movement_grid[current[1] % 2][action][0],
+                current[1] + movement_grid[current[1] % 2][action][1]
+            )
+            if neighbor[0] < 0 or neighbor[0] >= terrain.shape[0] or neighbor[1] < 0 or neighbor[1] >= terrain.shape[1]:
+                continue
+            if terrain[neighbor[0], neighbor[1]] == 2 or terrain[neighbor[0], neighbor[1]] == 3:
+                continue
+
+            neighbor = tuple(neighbor)
+            
+            if neighbor in closed_set:
+                continue
+
+            tentative_g_score = g_score[current] + 1
+
+            if neighbor not in open_set:
+                open_set.add(neighbor)
+            elif tentative_g_score >= g_score.get(neighbor, float('inf')):
+                continue
+
+            came_from[neighbor] = current
+            g_score[neighbor] = tentative_g_score
+            f_score[neighbor] = tentative_g_score + heuristic(neighbor, goal)
+
+    return []
+
+def bfs_pathfinding(start, goal, terrain):
+    rows, cols = terrain.shape
+    queue = deque([(start, [])])
+    visited = set()
+    visited.add(tuple(start))
+
+    while queue:
+        (current, path) = queue.popleft()
+
+        if np.array_equal(current, goal):
+            return path
+
+        for action in range(1, 7):
+            new_pos = (
+                current[0] + movement_grid[current[1] % 2][action][0],
+                current[1] + movement_grid[current[1] % 2][action][1]
+            )
+
+            if 0 <= new_pos[0] < rows and 0 <= new_pos[1] < cols and \
+               (new_pos[0], new_pos[1]) not in visited and \
+               terrain[new_pos[0], new_pos[1]] != 2 and terrain[new_pos[0], new_pos[1]] != 3:
+
+                visited.add((new_pos[0], new_pos[1]))
+                queue.append((new_pos, path + [action]))
+
+    return []  # Return empty path if no path found
+
+def get_best_direction_bfs(unit_pos, target_pos, terrain):
+    path = bfs_pathfinding(unit_pos, target_pos, terrain)
+    return path[0] if path else 0
 
 
 def getDistance(pos_1, pos_2):
@@ -157,94 +246,8 @@ def get_best_direction(unit_pos, target_pos, raw_state):
         if distance < min_distance:
             min_distance = distance
             best_direction = action
-    print("Best Direction:", best_direction)
+    # print("Best Direction:", best_direction)
     return best_direction
-
-def multi_forced_anchor_custom(movement, obs, team):
-    bases = obs['bases'][team]
-    units = obs['units'][team]
-    loads = obs['loads'][team]
-    resources = obs['resources']
-    base_loc = np.argwhere(bases == 1).squeeze()
-    resource_loc = np.argwhere(resources == 1)
-    allies = ally_locs(obs, team)
-    trucks = truck_locs(obs, team)
-
-    # print("Base Location:", base_loc)
-    # print("Resource Locations:", resource_loc)
-    # print("Allies:", allies)
-    # print("Trucks:", trucks)
-
-    for i, ally in enumerate(allies):
-        if len(trucks) == 0 or i > 6:
-            break
-        if isinstance(trucks[0], np.int64):
-            trucks = np.expand_dims(trucks, axis=0)
-        for truck in trucks:
-            if (ally == truck).all():
-                # print("Processing Truck at:", truck)
-                # print("Truck Load:", loads[truck[0], truck[1]])
-                if loads[truck[0], truck[1]] >= 2:
-                    # movement[i] = get_best_direction(truck, base_loc, obs)
-                    movement[i] = 0
-                    
-    #                 # print("Moving towards Base:", movement[i])
-    #             elif loads[truck[0], truck[1]] == 1:
-    #                 closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
-    #                 distance_to_base = getDistance(truck, base_loc)
-    #                 distance_to_resource = getDistance(truck, closest_resource)
-    #                 if distance_to_base < distance_to_resource:
-    #                     # movement[i] = get_best_direction(truck, base_loc, obs)
-    #                     movement[i] = 0
-                        
-    #                     # print("Closer to Base, Moving towards Base:", movement[i])
-    #                 else:
-    #                     # movement[i] = get_best_direction(truck, closest_resource, obs)
-    #                     movement[i] = 0
-                        
-    #                     # print("Closer to Resource, Moving towards Resource:", movement[i])
-    #             elif loads[truck[0], truck[1]] == 0:
-    #                 closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
-    #                 # movement[i] = get_best_direction(truck, closest_resource, obs)
-    #                 movement[i] = 0
-    #                 # print("Empty Truck, Moving towards Resource:", movement[i])
-    # # print("Final Movement:", movement)
-    return movement
-
-# def multi_forced_anchor_custom(movement, obs, team, raw_state):
-#     bases = obs['bases'][team]
-#     units = obs['units'][team]
-#     loads = obs['loads'][team]
-#     resources = obs['resources']
-#     base_loc = np.argwhere(bases == 1).squeeze()
-#     resource_loc = np.argwhere(resources == 1)
-#     allies = ally_locs(obs, team)
-#     trucks = truck_locs(obs, team)
-
-#     for i, ally in enumerate(allies):
-#         if len(trucks) == 0 or i > 6:
-#             break
-#         if isinstance(trucks[0], np.int64):
-#             trucks = np.expand_dims(trucks, axis=0)
-#         for truck in trucks:
-#             # Squeeze the truck array
-#             # truck = truc
-#             if np.array_equal(ally, truck):
-#                 if loads[truck[0], truck[1]] >= 2:
-#                     movement[i] = get_best_direction(truck, base_loc, raw_state)
-#                 elif loads[truck[0], truck[1]] == 1:
-#                     closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
-#                     distance_to_base = getDistance(truck, base_loc)
-#                     distance_to_resource = getDistance(truck, closest_resource)
-#                     if distance_to_base < distance_to_resource:
-#                         movement[i] = get_best_direction(truck, base_loc, raw_state)
-#                     else:
-#                         movement[i] = get_best_direction(truck, closest_resource, raw_state)
-#                 elif loads[truck[0], truck[1]] == 0:
-#                     # Get closest resource
-#                     closest_resource = min(resource_loc, key=lambda res: getDistance(truck, res))
-#                     movement[i] = get_best_direction(truck, closest_resource, raw_state)
-#     return movement
 
 def multi_forced_anchor(movement, obs, team): # birden fazla truck için
     bases = obs['bases'][team]
@@ -356,6 +359,41 @@ def reward_shape(obs, team):
             unload_reward += 10
 
     return load_reward + unload_reward
+
+def custom_state_representation(units, hps, bases, res, load, terrain, score, turn, max_turn, team, enemy_team):
+    state = []
+
+    # Encode base locations
+    my_base = np.argwhere(bases[team] == 1).squeeze()
+    enemy_base = np.argwhere(bases[enemy_team] == 1).squeeze()
+    state.extend(my_base)
+    state.extend(enemy_base)
+
+    # Encode unit locations and types
+    my_units = np.argwhere((units[team] > 0) & (units[team] < 6))
+    enemy_units = np.argwhere((units[enemy_team] > 0) & (units[enemy_team] < 6))
+    state.extend(my_units.flatten())
+    state.extend(enemy_units.flatten())
+
+    # Encode resources locations
+    resources = np.argwhere(res == 1).flatten()
+    state.extend(resources)
+
+    # Encode loads
+    state.extend(load[team].flatten())
+    state.extend(load[enemy_team].flatten())
+
+    # Encode terrain
+    state.extend(terrain.flatten())
+
+    # Add scores and turn information
+    state.extend(score)
+    state.append(turn)
+    state.append(max_turn)
+    
+
+    return np.array(state, dtype=np.float32)
+
 
 def multi_reward_shape(obs, team): # Birden fazla truck için
     load_reward = 0

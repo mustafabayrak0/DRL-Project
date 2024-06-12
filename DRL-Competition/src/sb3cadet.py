@@ -7,7 +7,8 @@ import argparse
 from agents.GolKenari import GolKenari
 from agents.CustomAgent import CustomAgent
 from CustomPolicy import CustomPolicyWithAttention
-from stable_baselines3 import A2C, PPO, DDPG, SAC, TD3
+from stable_baselines3 import A2C, PPO
+import datetime
 def read_hypers():
     with open(f"./src/hyper.yaml", "r") as f:
         hyperparams_dict = yaml.safe_load(f)
@@ -38,18 +39,26 @@ def read_hypers():
 args = argparse.Namespace()
 
 # Prepare args manually
-args.map = "GolKenariVadisi"
+# args.map = "GolKenariVadisi"
 # args.map = "RiskyValley"
+args.map = "RiskyValley"
+# args.map = "TrainDuoTruckSmall"
 # args.mode = "Train"
 args.agentBlue = "CustomAgent"
 args.agentRed = "RandomAgent"
-args.numOfMatch = 10
-args.render = True
+args.numOfMatch = 1
+args.render = False
 args.gif = False
 args.img = False
-
+args.mode = "Train"
 agents = [None, args.agentRed]
 
+# Get current time as day hour and minute
+currrent_time = datetime.datetime.now().strftime("%d-%H-%M")
+common_part = f"{currrent_time}-MAP-{args.map}"
+# common_part = 
+_dir = f"logs/{common_part}"
+_dir_model = f"models/{common_part}"
 
 class LoggerCallback(BaseCallback):
 
@@ -64,8 +73,7 @@ class LoggerCallback(BaseCallback):
     def _on_training_start(self) -> None:
 
         _logger = self.globals["logger"].Logger.CURRENT
-        _dir = _logger.dir
-        _dir = "logs"
+        
         log_format = logger.make_output_format(self._format, _dir, self.suffix)
         _logger.output_formats.append(log_format)
         if self.log_on_start is not None:
@@ -92,20 +100,20 @@ if __name__ == "__main__":
         )
 
         env = SubprocVecEnv([lambda: CustomAgent(args, agents) for i in range(hyperparam["env"]["n_envs"])])
-        # env = SubprocVecEnv([lambda: RiskyValley(args, agents) for i in range(hyperparam["env"]["n_envs"])])
-        # env = SubprocVecEnv([lambda: GolKenari(args, agents) for i in range(hyperparam["env"]["n_envs"])])
-        checkpoint_callback = CheckpointCallback(save_freq=100000, save_path='./models/YOUR-MODEL-NAME',
-                                                 name_prefix='tsts')
+        checkpoint_callback = CheckpointCallback(save_freq=100000, save_path=_dir_model, name_prefix='tsts')
         
         # model = PPO('MlpPolicy', env, verbose=1)
-        model = PPO('MlpPolicy', env, policy_kwargs={'features_extractor_class': CustomPolicyWithAttention}, verbose=1, tensorboard_log="logs")
-        model.learn(total_timesteps=100000)
+        model = PPO('MlpPolicy', env, policy_kwargs={'features_extractor_class': CustomPolicyWithAttention}, verbose=1, tensorboard_log="logs", **hyperparam["agent"])
+        if args.mode == "Train":
+            model.learn(total_timesteps=30000,callback=[checkpoint_callback, loggcallback], **hyperparam["learn"])
+        elif args.mode == "Sim":
+            model = PPO.load("./models/YOUR-MODEL-NAME/tsts_100000_steps")
+            obs = env.reset()
+            for i in range(10000):  # Run for a fixed number of steps or until done
+                action, _states = model.predict(obs, deterministic=True)
+                obs, rewards, dones, info = env.step(action)
         ## A2C
         # model = A2C(env=env,
         #             verbose=1,
         #             tensorboard_log="logs",
         #             **hyperparam["agent"])
-
-        # model.learn(callback=[loggcallback, checkpoint_callback],
-        #             tb_log_name=gamename,
-        #             **hyperparam["learn"])
